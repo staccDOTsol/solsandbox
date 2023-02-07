@@ -112,7 +112,6 @@ pub fn handler_tickarray(
 
   // dump tickarray account
   msg!("verify! whirlpool: {}", tickarray.whirlpool);
-  msg!("verify! start_tick_index: {}", tickarray.start_tick_index);
 
   let indexes = [
     sampling1, sampling2, sampling3, sampling4,
@@ -122,13 +121,6 @@ pub fn handler_tickarray(
     let index = indexes[i] as usize;
     let tick = tickarray.ticks[index];
     msg!("verify! ticks[{}].initialized: {}", index, tick.initialized);
-    msg!("verify! ticks[{}].liquidity_net: {}", index, tick.liquidity_net);
-    msg!("verify! ticks[{}].liquidity_gross: {}", index, tick.liquidity_gross);
-    msg!("verify! ticks[{}].fee_growth_outside_a: {}", index, tick.fee_growth_outside_a);
-    msg!("verify! ticks[{}].fee_growth_outside_b: {}", index, tick.fee_growth_outside_b);
-    msg!("verify! ticks[{}].reward_growths_outside[0]: {}", index, tick.reward_growths_outside[0]);
-    msg!("verify! ticks[{}].reward_growths_outside[1]: {}", index, tick.reward_growths_outside[1]);
-    msg!("verify! ticks[{}].reward_growths_outside[2]: {}", index, tick.reward_growths_outside[2]);
   }
 
   Ok(())

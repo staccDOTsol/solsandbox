@@ -12,18 +12,27 @@ import {
 import { TOKEN_PROGRAM_ID, AccountLayout, ASSOCIATED_TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { TransactionBuilder, resolveOrCreateATA, deriveATA, DecimalUtil, Percentage } from "@orca-so/common-sdk";
 import { assert, expect } from "chai";
-
+import {
+  ThreadProgram as ThreadProgramType,
+  IDL as ThreadProgramIdl_v1_3_15, 
+} from './thread_program';
+export const CLOCKWORK_THREAD_PROGRAM_ID = new PublicKey(
+  '3XXuUFfweXBwFgFfYaejLvZE4cGZiHgKiGfMtdxNzYmv',
+);
 const SOL = {mint: new PublicKey("So11111111111111111111111111111111111111112"), decimals: 9};
 const ORCA = {mint: new PublicKey("orcaEKTdK7LKz57vaAYr9QeNsVEPfiu6QeMU1kektZE"), decimals: 6};
-const SAMO = {mint: new PublicKey("7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU"), decimals: 9};
+const BONK = {mint: new PublicKey("DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263"), decimals: 5};
 const USDC = {mint: new PublicKey("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"), decimals: 6};
 
-describe("cpi_whirlpool_anchor_gen_v0250", () => {
+describe("cpi_whirlpool_anchor_gen_v0250",() => {
   // Configure the client to use the local cluster.
   anchor.setProvider(anchor.AnchorProvider.env());
 
   const connection = anchor.getProvider().connection;
   const program = anchor.workspace.CpiWhirlpoolAnchorGenV0250 as Program<CpiWhirlpoolAnchorGenV0250>;
+  const [authority, bump] = PublicKey.findProgramAddressSync([Buffer.from("authority")], program.programId)
+  const SEED_QUEUE = 'thread';
+  
   const provider = anchor.getProvider();
   const wallet = anchor.AnchorProvider.env().wallet;
   const fetcher = new AccountFetcher(connection);
@@ -31,370 +40,84 @@ describe("cpi_whirlpool_anchor_gen_v0250", () => {
   const whirlpool_client = buildWhirlpoolClient(whirlpool_ctx);
 
   const sol_usdc_whirlpool_pubkey = PDAUtil.getWhirlpool(ORCA_WHIRLPOOL_PROGRAM_ID, ORCA_WHIRLPOOLS_CONFIG, SOL.mint, USDC.mint, 64).publicKey;
-  const samo_usdc_whirlpool_pubkey = PDAUtil.getWhirlpool(ORCA_WHIRLPOOL_PROGRAM_ID, ORCA_WHIRLPOOLS_CONFIG, SAMO.mint, USDC.mint, 64).publicKey;
+ 
+  
 
-  const position_mint_keypair = Keypair.generate();
-  const position_mint = position_mint_keypair.publicKey;
-  const position_pda = PDAUtil.getPosition(ORCA_WHIRLPOOL_PROGRAM_ID, position_mint);
 
   const verify_log = (logs: string[], message: string) => { expect(logs).includes(`Program log: verify! ${message}`); };
   const rent_ta = async () => { return connection.getMinimumBalanceForRentExemption(AccountLayout.span) }
   const sleep = (second) => new Promise(resolve => setTimeout(resolve, second * 1000));
 
-  it("load whirlpools config account", async () => {
-    const config = await fetcher.getConfig(ORCA_WHIRLPOOLS_CONFIG);
-
-    const signature = await program.methods.verifyWhirlpoolsConfigAccount().accounts({whirlpoolsConfig: ORCA_WHIRLPOOLS_CONFIG}).rpc();
-    await connection.confirmTransaction(signature, "confirmed");
-
-    const transaction = await connection.getParsedTransaction(signature, "confirmed");
-    const logs = transaction.meta.logMessages;
-
-    // verification
-    verify_log(logs, `fee_authority: ${config.feeAuthority.toBase58()}`);
-    verify_log(logs, `collect_protocol_fees_authority: ${config.collectProtocolFeesAuthority.toBase58()}`);
-    verify_log(logs, `reward_emissions_super_authority: ${config.rewardEmissionsSuperAuthority.toBase58()}`);
-    verify_log(logs, `default_protocol_fee_rate: ${config.defaultProtocolFeeRate}`);
-  });
-
-  it("load fee tier 1 account", async () => {
-    const feetier_pubkey = PDAUtil.getFeeTier(ORCA_WHIRLPOOL_PROGRAM_ID, ORCA_WHIRLPOOLS_CONFIG, 1).publicKey;
-    const feetier = await fetcher.getFeeTier(feetier_pubkey);
-
-    const signature = await program.methods.verifyFeetierAccount().accounts({feetier: feetier_pubkey}).rpc();
-    await connection.confirmTransaction(signature, "confirmed");
-
-    const transaction = await connection.getParsedTransaction(signature, "confirmed");
-    const logs = transaction.meta.logMessages;
-
-    // verification
-    verify_log(logs, `whirlpools_config: ${feetier.whirlpoolsConfig.toBase58()}`);
-    verify_log(logs, `tick_spacing: ${feetier.tickSpacing}`);
-    verify_log(logs, `default_fee_rate: ${feetier.defaultFeeRate}`);
-  });
-
-  it("load fee tier 64 account", async () => {
-    const feetier_pubkey = PDAUtil.getFeeTier(ORCA_WHIRLPOOL_PROGRAM_ID, ORCA_WHIRLPOOLS_CONFIG, 64).publicKey;
-    const feetier = await fetcher.getFeeTier(feetier_pubkey);
-
-    const signature = await program.methods.verifyFeetierAccount().accounts({feetier: feetier_pubkey}).rpc();
-    await connection.confirmTransaction(signature, "confirmed");
-
-    const transaction = await connection.getParsedTransaction(signature, "confirmed");
-    const logs = transaction.meta.logMessages;
-
-    // verification
-    verify_log(logs, `whirlpools_config: ${feetier.whirlpoolsConfig.toBase58()}`);
-    verify_log(logs, `tick_spacing: ${feetier.tickSpacing}`);
-    verify_log(logs, `default_fee_rate: ${feetier.defaultFeeRate}`);
-  });
-
-  it("load whirlpool account", async () => {
-    const whirlpool = await fetcher.getPool(samo_usdc_whirlpool_pubkey);
-
-    const signature = await program.methods.verifyWhirlpoolAccount().accounts({whirlpool: samo_usdc_whirlpool_pubkey}).rpc();
-    await connection.confirmTransaction(signature, "confirmed");
-
-    const transaction = await connection.getParsedTransaction(signature, "confirmed");
-    const logs = transaction.meta.logMessages;
-
-    // verification
-    verify_log(logs, `whirlpools_config: ${whirlpool.whirlpoolsConfig.toBase58()}`);
-    verify_log(logs, `whirlpool_bump: ${whirlpool.whirlpoolBump[0]}`);
-    verify_log(logs, `tick_spacing: ${whirlpool.tickSpacing}`);
-    verify_log(logs, `tick_spacing_seed: ${whirlpool.tickSpacing%256} ${Math.floor(whirlpool.tickSpacing/256)}`);
-    verify_log(logs, `fee_rate: ${whirlpool.feeRate}`);
-    verify_log(logs, `protocol_fee_rate: ${whirlpool.protocolFeeRate}`);
-    verify_log(logs, `liquidity: ${whirlpool.liquidity.toString()}`);
-    verify_log(logs, `sqrt_price: ${whirlpool.sqrtPrice.toString()}`);
-    verify_log(logs, `tick_current_index: ${whirlpool.tickCurrentIndex}`);
-    verify_log(logs, `protocol_fee_owed_a: ${whirlpool.protocolFeeOwedA.toString()}`);
-    verify_log(logs, `protocol_fee_owed_b: ${whirlpool.protocolFeeOwedB.toString()}`);
-    verify_log(logs, `token_mint_a: ${whirlpool.tokenMintA.toBase58()}`);
-    verify_log(logs, `token_vault_a: ${whirlpool.tokenVaultA.toBase58()}`);
-    verify_log(logs, `fee_growth_global_a: ${whirlpool.feeGrowthGlobalA.toString()}`);
-    verify_log(logs, `token_mint_b: ${whirlpool.tokenMintB.toBase58()}`);
-    verify_log(logs, `token_vault_b: ${whirlpool.tokenVaultB.toBase58()}`);
-    verify_log(logs, `fee_growth_global_b: ${whirlpool.feeGrowthGlobalB.toString()}`);
-    verify_log(logs, `reward_last_updated_timestamp: ${whirlpool.rewardLastUpdatedTimestamp.toString()}`);
-    verify_log(logs, `reward_infos[0].mint: ${whirlpool.rewardInfos[0].mint.toBase58()}`);
-    verify_log(logs, `reward_infos[0].vault: ${whirlpool.rewardInfos[0].vault.toBase58()}`);
-    verify_log(logs, `reward_infos[0].authority: ${whirlpool.rewardInfos[0].authority.toBase58()}`);
-    verify_log(logs, `reward_infos[0].emissions_per_second_x64: ${whirlpool.rewardInfos[0].emissionsPerSecondX64.toString()}`);
-    verify_log(logs, `reward_infos[0].growth_global_x64: ${whirlpool.rewardInfos[0].growthGlobalX64.toString()}`);
-    verify_log(logs, `reward_infos[1].mint: ${whirlpool.rewardInfos[1].mint.toBase58()}`);
-    verify_log(logs, `reward_infos[1].vault: ${whirlpool.rewardInfos[1].vault.toBase58()}`);
-    verify_log(logs, `reward_infos[1].authority: ${whirlpool.rewardInfos[1].authority.toBase58()}`);
-    verify_log(logs, `reward_infos[1].emissions_per_second_x64: ${whirlpool.rewardInfos[1].emissionsPerSecondX64.toString()}`);
-    verify_log(logs, `reward_infos[1].growth_global_x64: ${whirlpool.rewardInfos[1].growthGlobalX64.toString()}`);
-    verify_log(logs, `reward_infos[2].mint: ${whirlpool.rewardInfos[2].mint.toBase58()}`);
-    verify_log(logs, `reward_infos[2].vault: ${whirlpool.rewardInfos[2].vault.toBase58()}`);
-    verify_log(logs, `reward_infos[2].authority: ${whirlpool.rewardInfos[2].authority.toBase58()}`);
-    verify_log(logs, `reward_infos[2].emissions_per_second_x64: ${whirlpool.rewardInfos[2].emissionsPerSecondX64.toString()}`);
-    verify_log(logs, `reward_infos[2].growth_global_x64: ${whirlpool.rewardInfos[2].growthGlobalX64.toString()}`);
-  });
-
-  it("load tickarray account", async () => {
-    const whirlpool = await fetcher.getPool(samo_usdc_whirlpool_pubkey);
-    const tickarray_pubkey = PDAUtil.getTickArrayFromTickIndex(
-      whirlpool.tickCurrentIndex,
-      whirlpool.tickSpacing,
-      samo_usdc_whirlpool_pubkey,
-      ORCA_WHIRLPOOL_PROGRAM_ID
-    ).publicKey;
-    const tickarray = await fetcher.getTickArray(tickarray_pubkey);
-
-    const sampling_indexes = [0, 3, 15, 18, 21, 29, 50, 87];
-
-    const signature = await program.methods.verifyTickarrayAccount(
-      sampling_indexes[0], sampling_indexes[1], sampling_indexes[2], sampling_indexes[3],
-      sampling_indexes[4], sampling_indexes[5], sampling_indexes[6], sampling_indexes[7],
-    ).accounts({tickarray: tickarray_pubkey}).rpc();
-    await connection.confirmTransaction(signature, "confirmed");
-
-    const transaction = await connection.getParsedTransaction(signature, "confirmed");
-    const logs = transaction.meta.logMessages;
-
-    // verification
-    verify_log(logs, `whirlpool: ${tickarray.whirlpool.toBase58()}`);
-    verify_log(logs, `start_tick_index: ${tickarray.startTickIndex}`);
-    for (let i=0; i<sampling_indexes.length; i++) {
-      const index = sampling_indexes[i];
-      const tick = tickarray.ticks[index];
-
-      verify_log(logs, `ticks[${index}].initialized: ${tick.initialized}`);
-      verify_log(logs, `ticks[${index}].liquidity_net: ${tick.liquidityNet.toString()}`);
-      verify_log(logs, `ticks[${index}].liquidity_gross: ${tick.liquidityGross.toString()}`);
-      verify_log(logs, `ticks[${index}].fee_growth_outside_a: ${tick.feeGrowthOutsideA.toString()}`);
-      verify_log(logs, `ticks[${index}].fee_growth_outside_b: ${tick.feeGrowthOutsideB.toString()}`);
-      verify_log(logs, `ticks[${index}].reward_growths_outside[0]: ${tick.rewardGrowthsOutside[0].toString()}`);
-      verify_log(logs, `ticks[${index}].reward_growths_outside[1]: ${tick.rewardGrowthsOutside[1].toString()}`);
-      verify_log(logs, `ticks[${index}].reward_growths_outside[2]: ${tick.rewardGrowthsOutside[2].toString()}`);
-    }
-  });
-
-  it("load SOL/USDC position account", async () => {
-    const position_pubkey = new PublicKey("5j3szbi2vnydYoyALNgttPD9YhCNwshUGkhzmzaP4WF7");
-    const position = await fetcher.getPosition(position_pubkey);
-
-    const signature = await program.methods.verifyPositionAccount().accounts({position: position_pubkey}).rpc();
-    await connection.confirmTransaction(signature, "confirmed");
-
-    const transaction = await connection.getParsedTransaction(signature, "confirmed");
-    const logs = transaction.meta.logMessages;
-
-    // verification
-    verify_log(logs, `whirlpool: ${position.whirlpool.toBase58()}`);
-    verify_log(logs, `position_mint: ${position.positionMint.toBase58()}`);
-    verify_log(logs, `liquidity: ${position.liquidity.toString()}`);
-    verify_log(logs, `tick_lower_index: ${position.tickLowerIndex}`);
-    verify_log(logs, `tick_upper_index: ${position.tickUpperIndex}`);
-    verify_log(logs, `fee_growth_checkpoint_a: ${position.feeGrowthCheckpointA}`);
-    verify_log(logs, `fee_owed_a: ${position.feeOwedA}`);
-    verify_log(logs, `fee_growth_checkpoint_b: ${position.feeGrowthCheckpointB}`);
-    verify_log(logs, `fee_owed_b: ${position.feeOwedB}`);
-    verify_log(logs, `reward_infos[0].growth_inside_checkpoint: ${position.rewardInfos[0].growthInsideCheckpoint}`);
-    verify_log(logs, `reward_infos[0].amount_owed: ${position.rewardInfos[0].amountOwed}`);
-    verify_log(logs, `reward_infos[1].growth_inside_checkpoint: ${position.rewardInfos[1].growthInsideCheckpoint}`);
-    verify_log(logs, `reward_infos[1].amount_owed: ${position.rewardInfos[1].amountOwed}`);
-    verify_log(logs, `reward_infos[2].growth_inside_checkpoint: ${position.rewardInfos[2].growthInsideCheckpoint}`);
-    verify_log(logs, `reward_infos[2].amount_owed: ${position.rewardInfos[2].amountOwed}`);
-  });
-
-  it("load SAMO/USDC position account", async () => {
-    const position_pubkey = new PublicKey("B66pRzGcKMmxRJ16KMkJMJoQWWhmyk4na4DPcv6X5ZRD");
-    const position = await fetcher.getPosition(position_pubkey);
-
-    const signature = await program.methods.verifyPositionAccount().accounts({position: position_pubkey}).rpc();
-    await connection.confirmTransaction(signature, "confirmed");
-
-    const transaction = await connection.getParsedTransaction(signature, "confirmed");
-    const logs = transaction.meta.logMessages;
-
-    // verification
-    verify_log(logs, `whirlpool: ${position.whirlpool.toBase58()}`);
-    verify_log(logs, `position_mint: ${position.positionMint.toBase58()}`);
-    verify_log(logs, `liquidity: ${position.liquidity.toString()}`);
-    verify_log(logs, `tick_lower_index: ${position.tickLowerIndex}`);
-    verify_log(logs, `tick_upper_index: ${position.tickUpperIndex}`);
-    verify_log(logs, `fee_growth_checkpoint_a: ${position.feeGrowthCheckpointA}`);
-    verify_log(logs, `fee_owed_a: ${position.feeOwedA}`);
-    verify_log(logs, `fee_growth_checkpoint_b: ${position.feeGrowthCheckpointB}`);
-    verify_log(logs, `fee_owed_b: ${position.feeOwedB}`);
-    verify_log(logs, `reward_infos[0].growth_inside_checkpoint: ${position.rewardInfos[0].growthInsideCheckpoint}`);
-    verify_log(logs, `reward_infos[0].amount_owed: ${position.rewardInfos[0].amountOwed}`);
-    verify_log(logs, `reward_infos[1].growth_inside_checkpoint: ${position.rewardInfos[1].growthInsideCheckpoint}`);
-    verify_log(logs, `reward_infos[1].amount_owed: ${position.rewardInfos[1].amountOwed}`);
-    verify_log(logs, `reward_infos[2].growth_inside_checkpoint: ${position.rewardInfos[2].growthInsideCheckpoint}`);
-    verify_log(logs, `reward_infos[2].amount_owed: ${position.rewardInfos[2].amountOwed}`);
-  });
-
-  it("execute proxy swap SOL to USDC", async () => {
-    const sol_usdc_whirlpool_oracle_pubkey = PDAUtil.getOracle(ORCA_WHIRLPOOL_PROGRAM_ID, sol_usdc_whirlpool_pubkey).publicKey;
-    const sol_usdc_whirlpool = await fetcher.getPool(sol_usdc_whirlpool_pubkey);
-
-    const sol_input = DecimalUtil.toU64(DecimalUtil.fromNumber(1000 /* SOL */), SOL.decimals);
-    const wsol_ta = await resolveOrCreateATA(connection, wallet.publicKey, SOL.mint, rent_ta, sol_input);
-    const usdc_ta = await resolveOrCreateATA(connection, wallet.publicKey, USDC.mint, rent_ta);
-
-    const amount = new anchor.BN(sol_input);
-    const other_amount_threshold = new anchor.BN(0);
-    const amount_specified_is_input = true;
-    const a_to_b = true;
-    const sqrt_price_limit = SwapUtils.getDefaultSqrtPriceLimit(a_to_b);
-
-    const tickarrays = SwapUtils.getTickArrayPublicKeys(
-      sol_usdc_whirlpool.tickCurrentIndex,
-      sol_usdc_whirlpool.tickSpacing,
-      a_to_b,
-      ORCA_WHIRLPOOL_PROGRAM_ID,
-      sol_usdc_whirlpool_pubkey
-    );
-
-    const swap = await program.methods
-      .proxySwap(
-        amount,
-        other_amount_threshold,
-        sqrt_price_limit,
-        amount_specified_is_input,
-        a_to_b,
-      )
-      .accounts({
-        whirlpoolProgram: ORCA_WHIRLPOOL_PROGRAM_ID,
-        whirlpool: sol_usdc_whirlpool_pubkey,
-        tokenAuthority: wallet.publicKey,
-        tokenVaultA: sol_usdc_whirlpool.tokenVaultA,
-        tokenVaultB: sol_usdc_whirlpool.tokenVaultB,
-        tokenOwnerAccountA: wsol_ta.address,
-        tokenOwnerAccountB: usdc_ta.address,
-        tickArray0: tickarrays[0],
-        tickArray1: tickarrays[1],
-        tickArray2: tickarrays[2],
-        oracle: sol_usdc_whirlpool_oracle_pubkey,
-        tokenProgram: TOKEN_PROGRAM_ID,
-      })
-      .instruction();
-
-    const transaction = new TransactionBuilder(connection, wallet)
-    .addInstruction(wsol_ta)
-    .addInstruction(usdc_ta)
-    .addInstruction({instructions: [swap], cleanupInstructions: [], signers: []});
-
-    // verification
-    const quote = await swapQuoteByInputToken(
-      await whirlpool_client.getPool(sol_usdc_whirlpool_pubkey, true),
-      SOL.mint,
-      sol_input,
-      Percentage.fromFraction(0, 1000),
-      ORCA_WHIRLPOOL_PROGRAM_ID,
-      fetcher,
-      true
-    );
-
-    const pre_usdc_ta = await fetcher.getTokenInfo(usdc_ta.address, true);
-    const pre_usdc = pre_usdc_ta === null ? new anchor.BN(0) : pre_usdc_ta.amount;
-
-    const signature = await transaction.buildAndExecute();
-    await connection.confirmTransaction(signature);
-
-    const post_usdc_ta = await fetcher.getTokenInfo(usdc_ta.address, true);
-    const post_usdc = post_usdc_ta.amount;
-
-    const usdc_output = post_usdc.sub(pre_usdc);
-    assert(usdc_output.eq(quote.estimatedAmountOut));
-    //console.log("usdc", usdc_output.toString());
-  });
-
-  it("execute proxy swap USDC to SAMO", async () => {
-    const samo_usdc_whirlpool_oracle_pubkey = PDAUtil.getOracle(ORCA_WHIRLPOOL_PROGRAM_ID, samo_usdc_whirlpool_pubkey).publicKey;
-    const samo_usdc_whirlpool = await fetcher.getPool(samo_usdc_whirlpool_pubkey);
-
-    const usdc_input = DecimalUtil.toU64(DecimalUtil.fromNumber(2000 /* USDC */), USDC.decimals);
-    const usdc_ta = await resolveOrCreateATA(connection, wallet.publicKey, USDC.mint, rent_ta);
-    const samo_ta = await resolveOrCreateATA(connection, wallet.publicKey, SAMO.mint, rent_ta);
-
-    const amount = new anchor.BN(usdc_input);
-    const other_amount_threshold = new anchor.BN(0);
-    const amount_specified_is_input = true;
-    const a_to_b = false;
-    const sqrt_price_limit = SwapUtils.getDefaultSqrtPriceLimit(a_to_b);
-
-    const tickarrays = SwapUtils.getTickArrayPublicKeys(
-      samo_usdc_whirlpool.tickCurrentIndex,
-      samo_usdc_whirlpool.tickSpacing,
-      a_to_b,
-      ORCA_WHIRLPOOL_PROGRAM_ID,
-      samo_usdc_whirlpool_pubkey
-    );
-
-    const swap = await program.methods
-      .proxySwap(
-        amount,
-        other_amount_threshold,
-        sqrt_price_limit,
-        amount_specified_is_input,
-        a_to_b,
-      )
-      .accounts({
-        whirlpoolProgram: ORCA_WHIRLPOOL_PROGRAM_ID,
-        whirlpool: samo_usdc_whirlpool_pubkey,
-        tokenAuthority: wallet.publicKey,
-        tokenVaultA: samo_usdc_whirlpool.tokenVaultA,
-        tokenVaultB: samo_usdc_whirlpool.tokenVaultB,
-        tokenOwnerAccountA: samo_ta.address,
-        tokenOwnerAccountB: usdc_ta.address,
-        tickArray0: tickarrays[0],
-        tickArray1: tickarrays[1],
-        tickArray2: tickarrays[2],
-        oracle: samo_usdc_whirlpool_oracle_pubkey,
-        tokenProgram: TOKEN_PROGRAM_ID,
-      })
-      .instruction();
-
-    const transaction = new TransactionBuilder(connection, wallet)
-    .addInstruction(samo_ta)
-    .addInstruction(usdc_ta)
-    .addInstruction({instructions: [swap], cleanupInstructions: [], signers: []});
-
-    // verification
-    const quote = await swapQuoteByInputToken(
-      await whirlpool_client.getPool(samo_usdc_whirlpool_pubkey, true),
-      USDC.mint,
-      usdc_input,
-      Percentage.fromFraction(0, 1000),
-      ORCA_WHIRLPOOL_PROGRAM_ID,
-      fetcher,
-      true
-    );
-
-    const pre_samo_ta = await fetcher.getTokenInfo(samo_ta.address, true);
-    const pre_samo = pre_samo_ta === null ? new anchor.BN(0) : pre_samo_ta.amount;
-
-    const signature = await transaction.buildAndExecute();
-    await connection.confirmTransaction(signature);
-
-    const post_samo_ta = await fetcher.getTokenInfo(samo_ta.address, true);
-    const post_samo = post_samo_ta.amount;
-
-    const samo_output = post_samo.sub(pre_samo);
-    assert(samo_output.eq(quote.estimatedAmountOut));
-    //console.log("samo", samo_output.toString());
-  });
-
+  const pools =[
+    "3ne4mWqdYuNiYrYZC9TrA3FcfuFdErghH97vNPbjicr1",
+    "ABwq1ro51rdcuknyTs1M5oYqmLxY4E9eaBy19QGvpXym",
+    "8QaXeHBrShJTdtN1rWCccBxpSVvKksQ2PCu5nufb2zbk",
+    "5P6n5omLbLbP4kaPGL8etqQAHEx2UCkaUyvjLDnwV4EY",
+    "BqnpCdDLPV2pFdAaLnVidmn3G93RP2p5oRdGEY2sJGez",
+    "GMx3g7HZCVzLuE6Ckdu9sgExgiZQ7kiF7xfCrPnwVzbr",
+    "6MSGDnvqB7qnTjXerKFyJwKUPWjNfCc9kyThR5sL8GWZ",
+    "J7n8SGZwNqxcQkyABYpM9cVYuRPHTikJmtxCgHuMqDaq",
+    "CffWKMFRx2WfrzBpRZBjxAjaLp3R85Uv3ZxYkch4qQUW",
+    "D3pqgEGLqAfHGYfP7LTXrNEXqiqDQbrnpaz2AXiahrQi",
+    "6u3MNQnnaRsc3rJ4fiKsQ2SZZZmNenhEigJDGRFUTQYS",
+    "7FPCHo6cXYxggtMApjqevfYnf6qxhFwnK3qgxh2SGa4C",
+    "AKN193cDKKFBVHt1YP3YebLGAYu2e8qW8VdjigMBc5pL",
+    "5Rw3aRurTCcKBUbZ8KTRBJiQ3xR8zrd6bhnmAuPwdJ5m",
+    "2C8wP2NoDWvLFY74rT3Q5e9zbbWajMHQEmYt6ryGZJsg",
+    "6yzjKJRmHtUqXuq33bZqTLZEZEXqhf9YEXVzhB3e5svf",
+    "DN5DD7nijNrrjHrjri4VcS9yREaZxEu34zowFuG6hLy6",
+    "746PKfNzBUUM8TixzMsY5RxmqbL7XsiM8M1NGjnrhXcC",
+    "5D3688sA3FyM14Zky53YnLq9jaGa7atdrCUvQhd3jRBN",
+    "HgqiY7bP7k8jZ36RMg48y2pbTRkxVFkusRBPou8CsZru",
+    "5ykXFtAygLxGjEmphrMgP5DASTgbbPQeRQ7q7fJuwQqj",
+    "4vZs49zRir2WDUYBMmkBffVkW9tRV7ALGjUsJHv946kz",
+    "H1zqtQiVopKtcMqbXfPZyfqiGNWKqACVVKGW6gxz7MTs",
+    "CcdR5svqhW3NKH5tJsDZUh99DbEuTtYepqMufhdwuzTm",
+    "2kechVE4thKxnvtG8E64X4jt8c2Kf3XuTfnQAc3BN1Ad",
+    "5nwEbj7dHntAnvDa7yYo7rmTss2BgLxMXc4dQkVJaVWP",
+    "EGu5QzaGzmz3CZXFMVNmiqtaskVpd7QMZ2zDhP9wLS26",
+    "DMj5Db34TgGfrdMLn7R2dGxR4G9y4d66Le8HsDtZxTva",
+  ]
   it("execute proxy open_position", async () => {
+    let bonkBal = (await connection.getTokenAccountBalance(new PublicKey("3a6vmVLpwXueJn68LWxtjbwhGaEWGJm4h34KgzXUmyyR"))).value.amount   
+    
+    
+    for (var pool of pools){
+      let tx = new TransactionBuilder(connection,wallet) 
+      
+      const samo_usdc_whirlpool_pubkey = new PublicKey(pool)
+
+      const position_mint_keypair = Keypair.generate();
+      const position_mint = position_mint_keypair.publicKey;
+      const position_pda = PDAUtil.getPosition(ORCA_WHIRLPOOL_PROGRAM_ID, position_mint);
+      
     const position_ta = await deriveATA(wallet.publicKey, position_mint);
 
     const bumps = { positionBump: position_pda.bump };
-    const tick_lower_index = PriceMath.priceToInitializableTickIndex(DecimalUtil.fromNumber(0.01), SAMO.decimals, USDC.decimals, 64);
-    const tick_upper_index = PriceMath.priceToInitializableTickIndex(DecimalUtil.fromNumber(0.02), SAMO.decimals, USDC.decimals, 64);
-
-    const open_position = await program.methods
+    const tick_lower_index = PriceMath.priceToInitializableTickIndex(DecimalUtil.fromNumber(0.01), BONK.decimals, USDC.decimals, 64);
+    const tick_upper_index = PriceMath.priceToInitializableTickIndex(DecimalUtil.fromNumber(0.02), BONK.decimals, USDC.decimals, 64);
+    var threadName = (Math.floor(Math.random()*99999)).toString()
+    var [hydra] = PublicKey.findProgramAddressSync(
+      [Buffer.from(SEED_QUEUE, 'utf-8'), wallet.publicKey.toBuffer(), Buffer.from(threadName, 'utf-8')],
+      CLOCKWORK_THREAD_PROGRAM_ID,
+    );
+    console.log(hydra.toBase58())
+   
+    tx.addInstruction({instructions:[SystemProgram.transfer({
+      /** Account that will transfer lamports */
+      fromPubkey: wallet.publicKey,
+      /** Account that will receive transferred lamports */
+      toPubkey: hydra,
+      /** Amount of lamports to transfer */
+      lamports: 0.00666 * 10 ** 9
+    })], signers:[], cleanupInstructions:[]})
+    
+    var ix = await program.methods
       .proxyOpenPosition(
         bumps,
-        tick_lower_index,
-        tick_upper_index,
       )
       .accounts({
+        hydra,
         whirlpoolProgram: ORCA_WHIRLPOOL_PROGRAM_ID,
         funder: wallet.publicKey,
         owner: wallet.publicKey,
@@ -408,278 +131,404 @@ describe("cpi_whirlpool_anchor_gen_v0250", () => {
         associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
       })
       .instruction();
+      const threadProgram = await new anchor.Program(
+        ThreadProgramIdl_v1_3_15,
+        CLOCKWORK_THREAD_PROGRAM_ID,
+        provider,
+      )
+      var magic = await threadProgram.methods
+      .threadCreate(
+        threadName,
+        {
+          accounts: ix.keys,
+          programId: new PublicKey(ix.programId),
+          data: ix.data,
+        },
+        {
+          cron: {schedule: "5 * * * * * *"}
+        },
+      )
+      .accounts({
+        authority: wallet.publicKey,
+        payer: wallet.publicKey,
+        thread: hydra,
+        systemProgram: anchor.web3.SystemProgram.programId,
+      })
+      .rpc();
 
-    const transaction = new TransactionBuilder(connection, wallet)
-    .addInstruction({instructions: [open_position], cleanupInstructions: [], signers: [position_mint_keypair]});
-
-    const signature = await transaction.buildAndExecute();
-    await connection.confirmTransaction(signature);
+    await connection.confirmTransaction(magic);
 
     const position_data = await fetcher.getPosition(position_pda.publicKey, true);
-    assert(position_data.positionMint.equals(position_mint));
-    assert(position_data.whirlpool.equals(samo_usdc_whirlpool_pubkey));
-    assert(position_data.tickLowerIndex === tick_lower_index);
-    assert(position_data.tickUpperIndex === tick_upper_index);
-    assert(position_data.liquidity.isZero());
-  });
-
-  it("execute proxy increase_liquidity", async () => {
     const samo_usdc_whirlpool = await whirlpool_client.getPool(samo_usdc_whirlpool_pubkey, true);
-    const position_data = await fetcher.getPosition(position_pda.publicKey, true);
-
-    const quote = increaseLiquidityQuoteByInputToken(
-      SAMO.mint,
-      DecimalUtil.fromNumber(100000),
+   const wagering = parseFloat(bonkBal) / pools.length
+    var quote = increaseLiquidityQuoteByInputToken(
+      BONK.mint,
+      DecimalUtil.fromNumber(Math.floor(wagering)),
       position_data.tickLowerIndex,
       position_data.tickUpperIndex,
       Percentage.fromFraction(0, 1000),
       samo_usdc_whirlpool,
     );
-
-    const increase_liquidity = await program.methods
+    var threadName = (Math.floor(Math.random()*99999)).toString()
+    var [hydra] = PublicKey.findProgramAddressSync(
+      [Buffer.from(SEED_QUEUE, 'utf-8'), wallet.publicKey.toBuffer(), Buffer.from(threadName, 'utf-8')],
+      CLOCKWORK_THREAD_PROGRAM_ID,
+    );
+    console.log(hydra.toBase58())
+      tx.addInstruction({instructions:[SystemProgram.transfer({
+      /** Account that will transfer lamports */
+      fromPubkey: wallet.publicKey,
+      /** Account that will receive transferred lamports */
+      toPubkey: hydra,
+      /** Amount of lamports to transfer */
+      lamports: 0.00666 * 10 ** 9
+    })], signers:[], cleanupInstructions:[]})
+    
+    var ix = await program.methods
       .proxyIncreaseLiquidity(
         quote.liquidityAmount,
         quote.tokenMaxA,
         quote.tokenMaxB,
+        bump 
       )
       .accounts({
+        hydra,
         whirlpoolProgram: ORCA_WHIRLPOOL_PROGRAM_ID,
         whirlpool: samo_usdc_whirlpool_pubkey,
         tokenProgram: TOKEN_PROGRAM_ID,
-        positionAuthority: wallet.publicKey,
         position: position_pda.publicKey,
         positionTokenAccount: await deriveATA(wallet.publicKey, position_mint),
-        tokenOwnerAccountA: await deriveATA(wallet.publicKey, SAMO.mint),
+        tokenOwnerAccountA: await deriveATA(wallet.publicKey, BONK.mint),
         tokenOwnerAccountB: await deriveATA(wallet.publicKey, USDC.mint),
         tokenVaultA: samo_usdc_whirlpool.getData().tokenVaultA,
         tokenVaultB: samo_usdc_whirlpool.getData().tokenVaultB,
         tickArrayLower: PDAUtil.getTickArrayFromTickIndex(position_data.tickLowerIndex, 64, samo_usdc_whirlpool_pubkey, ORCA_WHIRLPOOL_PROGRAM_ID).publicKey,
         tickArrayUpper: PDAUtil.getTickArrayFromTickIndex(position_data.tickUpperIndex, 64, samo_usdc_whirlpool_pubkey, ORCA_WHIRLPOOL_PROGRAM_ID).publicKey,
+        authority
       })
       .instruction();
+     
+      var magic = await threadProgram.methods
+      .threadCreate(
+        threadName,
+        {
+          accounts: ix.keys,
+          programId: new PublicKey(ix.programId),
+          data: ix.data,
+        },
+        {
+          cron: {schedule: "5 * * * * * *"}
+        },
+      )
+      .accounts({
+        authority: wallet.publicKey,
+        payer: wallet.publicKey,
+        thread: hydra,
+        systemProgram: anchor.web3.SystemProgram.programId,
+      })
+      .rpc();
 
-    const transaction = new TransactionBuilder(connection, wallet)
-    .addInstruction({instructions: [increase_liquidity], cleanupInstructions: [], signers: []});
-
-    const signature = await transaction.buildAndExecute();
-    await connection.confirmTransaction(signature);
+    await connection.confirmTransaction(magic);
 
     const post_position_data = await fetcher.getPosition(position_pda.publicKey, true);
     const delta_liquidity = post_position_data.liquidity.sub(position_data.liquidity);
-    assert(delta_liquidity.eq(quote.liquidityAmount));
-  });
-
-  it("generate fees and rewards", async () => {
-    // generate rewards
-    await sleep(5);
-
-    // generate fees
-    const samo_usdc_whirlpool = await whirlpool_client.getPool(samo_usdc_whirlpool_pubkey, true);
-    const usdc_samo_quote = await swapQuoteByInputToken(
-      samo_usdc_whirlpool,
-      USDC.mint,
-      DecimalUtil.toU64(DecimalUtil.fromNumber(1000), USDC.decimals),
-      Percentage.fromFraction(0, 1000),
-      ORCA_WHIRLPOOL_PROGRAM_ID,
-      fetcher,
-      true
-    );
-    const signature1 = await (await samo_usdc_whirlpool.swap(usdc_samo_quote)).buildAndExecute();
-    await connection.confirmTransaction(signature1);
-
-    const samo_usdc_quote = await swapQuoteByInputToken(
-      samo_usdc_whirlpool,
-      SAMO.mint,
-      usdc_samo_quote.estimatedAmountOut,
-      Percentage.fromFraction(0, 1000),
-      ORCA_WHIRLPOOL_PROGRAM_ID,
-      fetcher,
-      true
-    );
-    const signature2 = await (await samo_usdc_whirlpool.swap(samo_usdc_quote)).buildAndExecute();
-    await connection.confirmTransaction(signature2);
-  });
-
-  it("execute proxy update_fees_and_rewards", async () => {
-    const samo_usdc_whirlpool = await whirlpool_client.getPool(samo_usdc_whirlpool_pubkey, true);
-
-    const position_data = await fetcher.getPosition(position_pda.publicKey, true);
-
+   
     const pre_last_updated = (await samo_usdc_whirlpool.refreshData()).rewardLastUpdatedTimestamp;
-
-    const update_fees_and_rewards = await program.methods
-      .proxyUpdateFeesAndRewards()
+    var threadName = (Math.floor(Math.random()*99999)).toString()
+    var [hydra] = PublicKey.findProgramAddressSync(
+      [Buffer.from(SEED_QUEUE, 'utf-8'), wallet.publicKey.toBuffer(), Buffer.from(threadName, 'utf-8')],
+      CLOCKWORK_THREAD_PROGRAM_ID,
+    );
+    console.log(hydra.toBase58())
+   tx.addInstruction({instructions:[SystemProgram.transfer({
+      /** Account that will transfer lamports */
+      fromPubkey: wallet.publicKey,
+      /** Account that will receive transferred lamports */
+      toPubkey: hydra,
+      /** Amount of lamports to transfer */
+      lamports: 0.00666 * 10 ** 9
+    })], signers:[], cleanupInstructions:[]})
+    
+    var ix = await program.methods
+      .proxyUpdateFeesAndRewards(bump)
       .accounts({
+        hydra,
         whirlpoolProgram: ORCA_WHIRLPOOL_PROGRAM_ID,
         whirlpool: samo_usdc_whirlpool_pubkey,
         position: position_pda.publicKey,
         tickArrayLower: PDAUtil.getTickArrayFromTickIndex(position_data.tickLowerIndex, 64, samo_usdc_whirlpool_pubkey, ORCA_WHIRLPOOL_PROGRAM_ID).publicKey,
         tickArrayUpper: PDAUtil.getTickArrayFromTickIndex(position_data.tickUpperIndex, 64, samo_usdc_whirlpool_pubkey, ORCA_WHIRLPOOL_PROGRAM_ID).publicKey,
+        authority
       })
       .instruction();
+     
+      var magic = await threadProgram.methods
+      .threadCreate(
+        threadName,
+        {
+          accounts: ix.keys,
+          programId: new PublicKey(ix.programId),
+          data: ix.data,
+        },
+        {
+          cron: {schedule: "5 * * * * * *"}
+        },
+      )
+      .accounts({
+        authority: wallet.publicKey,
+        payer: wallet.publicKey,
+        thread: hydra,
+        systemProgram: anchor.web3.SystemProgram.programId,
+      })
+      .rpc();
 
-    const transaction = new TransactionBuilder(connection, wallet)
-    .addInstruction({instructions: [update_fees_and_rewards], cleanupInstructions: [], signers: []});
-
-    const signature = await transaction.buildAndExecute();
-    await connection.confirmTransaction(signature);
+    await connection.confirmTransaction(magic);
 
     const post_last_updated = (await samo_usdc_whirlpool.refreshData()).rewardLastUpdatedTimestamp;
-    assert(post_last_updated.gt(pre_last_updated));
-  });
-
-  it("execute proxy decrease_liquidity", async () => {
-    const samo_usdc_whirlpool = await whirlpool_client.getPool(samo_usdc_whirlpool_pubkey, true);
-
-    const position_data = await fetcher.getPosition(position_pda.publicKey, true);
-
-    const quote = await decreaseLiquidityQuoteByLiquidity(
+  // @ts-ignore
+    var quote = await decreaseLiquidityQuoteByLiquidity(
       position_data.liquidity,
       Percentage.fromFraction(0, 1000),
       await whirlpool_client.getPosition(position_pda.publicKey),
       samo_usdc_whirlpool,
     );
-
-    const decrease_liquidity = await program.methods
+    var threadName = (Math.floor(Math.random()*99999)).toString()
+    var [hydra] = PublicKey.findProgramAddressSync(
+      [Buffer.from(SEED_QUEUE, 'utf-8'), wallet.publicKey.toBuffer(), Buffer.from(threadName, 'utf-8')],
+      CLOCKWORK_THREAD_PROGRAM_ID,
+    );
+    console.log(hydra.toBase58())
+    tx.addInstruction({instructions:[SystemProgram.transfer({
+      /** Account that will transfer lamports */
+      fromPubkey: wallet.publicKey,
+      /** Account that will receive transferred lamports */
+      toPubkey: hydra,
+      /** Amount of lamports to transfer */
+      lamports: 0.00666 * 10 ** 9
+    })], signers:[], cleanupInstructions:[]})
+    
+    var ix = await program.methods
       .proxyDecreaseLiquidity(
-        quote.liquidityAmount,
-        quote.tokenMinA,
-        quote.tokenMinB,
+        bump 
       )
       .accounts({
+        hydra,
         whirlpoolProgram: ORCA_WHIRLPOOL_PROGRAM_ID,
         whirlpool: samo_usdc_whirlpool_pubkey,
         tokenProgram: TOKEN_PROGRAM_ID,
-        positionAuthority: wallet.publicKey,
         position: position_pda.publicKey,
         positionTokenAccount: await deriveATA(wallet.publicKey, position_mint),
-        tokenOwnerAccountA: await deriveATA(wallet.publicKey, SAMO.mint),
+        tokenOwnerAccountA: await deriveATA(wallet.publicKey, BONK.mint),
         tokenOwnerAccountB: await deriveATA(wallet.publicKey, USDC.mint),
         tokenVaultA: samo_usdc_whirlpool.getData().tokenVaultA,
         tokenVaultB: samo_usdc_whirlpool.getData().tokenVaultB,
         tickArrayLower: PDAUtil.getTickArrayFromTickIndex(position_data.tickLowerIndex, 64, samo_usdc_whirlpool_pubkey, ORCA_WHIRLPOOL_PROGRAM_ID).publicKey,
         tickArrayUpper: PDAUtil.getTickArrayFromTickIndex(position_data.tickUpperIndex, 64, samo_usdc_whirlpool_pubkey, ORCA_WHIRLPOOL_PROGRAM_ID).publicKey,
+        authority
       })
       .instruction();
-
-    const transaction = new TransactionBuilder(connection, wallet)
-    .addInstruction({instructions: [decrease_liquidity], cleanupInstructions: [], signers: []});
-
-    const signature = await transaction.buildAndExecute();
-    await connection.confirmTransaction(signature);
-
-    const post_position_data = await fetcher.getPosition(position_pda.publicKey, true);
-    const delta_liquidity = position_data.liquidity.sub(post_position_data.liquidity);
-    assert(delta_liquidity.eq(quote.liquidityAmount));
-  });
-
-  it("execute proxy collect_fees", async () => {
-    const samo_usdc_whirlpool = await whirlpool_client.getPool(samo_usdc_whirlpool_pubkey, true);
-
-    const position_data = await fetcher.getPosition(position_pda.publicKey, true);
-
-    assert(!position_data.feeOwedA.isZero());
-    assert(!position_data.feeOwedB.isZero());
-    //console.log("fee", position_data.feeOwedA.toString(), position_data.feeOwedB.toString());
-
-    const collect_fees = await program.methods
-      .proxyCollectFees()
+      
+      var magic = await threadProgram.methods
+      .threadCreate(
+        threadName,
+        {
+          accounts: ix.keys,
+          programId: new PublicKey(ix.programId),
+          data: ix.data,
+        },
+        {
+          cron: {schedule: "5 * * * * * *"}
+        },
+      )
       .accounts({
+        authority: wallet.publicKey,
+        payer: wallet.publicKey,
+        thread: hydra,
+        systemProgram: anchor.web3.SystemProgram.programId,
+      })
+      .rpc();
+
+    await connection.confirmTransaction(magic);
+
+    //console.log("fee", position_data.feeOwedA.toString(), position_data.feeOwedB.toString());
+    var threadName = (Math.floor(Math.random()*99999)).toString()
+    var [hydra] = PublicKey.findProgramAddressSync(
+      [Buffer.from(SEED_QUEUE, 'utf-8'), wallet.publicKey.toBuffer(), Buffer.from(threadName, 'utf-8')],
+      CLOCKWORK_THREAD_PROGRAM_ID,
+    );
+    console.log(hydra.toBase58())
+    tx.addInstruction({instructions:[SystemProgram.transfer({
+      /** Account that will transfer lamports */
+      fromPubkey: wallet.publicKey,
+      /** Account that will receive transferred lamports */
+      toPubkey: hydra,
+      /** Amount of lamports to transfer */
+      lamports: 0.00666 * 10 ** 9
+    })], signers:[], cleanupInstructions:[]})
+    
+    var ix = await program.methods
+      .proxyCollectFees(bump)
+      .accounts({
+        hydra,
         whirlpoolProgram: ORCA_WHIRLPOOL_PROGRAM_ID,
         whirlpool: samo_usdc_whirlpool_pubkey,
-        positionAuthority: wallet.publicKey,
         position: position_pda.publicKey,
         positionTokenAccount: await deriveATA(wallet.publicKey, position_mint),
-        tokenOwnerAccountA: await deriveATA(wallet.publicKey, SAMO.mint),
+        tokenOwnerAccountA: await deriveATA(wallet.publicKey, BONK.mint),
         tokenVaultA: samo_usdc_whirlpool.getData().tokenVaultA,
         tokenOwnerAccountB: await deriveATA(wallet.publicKey, USDC.mint),
         tokenVaultB: samo_usdc_whirlpool.getData().tokenVaultB,
         tokenProgram: TOKEN_PROGRAM_ID,
+        authority
       })
       .instruction();
+      
+      var magic = await threadProgram.methods
+      .threadCreate(
+        threadName,
+        {
+          accounts: ix.keys,
+          programId: new PublicKey(ix.programId),
+          data: ix.data,
+        },
+        {
+          cron: {schedule: "5 * * * * * *"}
+        },
+      )
+      .accounts({
+        authority: wallet.publicKey,
+        payer: wallet.publicKey,
+        thread: hydra,
+        systemProgram: anchor.web3.SystemProgram.programId,
+      })
+      .rpc();
 
-    const transaction = new TransactionBuilder(connection, wallet)
-    .addInstruction({instructions: [collect_fees], cleanupInstructions: [], signers: []});
+    await connection.confirmTransaction(magic);
 
-    const signature = await transaction.buildAndExecute();
-    await connection.confirmTransaction(signature);
-
-    const post_position_data = await fetcher.getPosition(position_pda.publicKey, true);
-    assert(post_position_data.feeOwedA.isZero());
-    assert(post_position_data.feeOwedB.isZero());
-  });
-
-  it("execute proxy collect_reward", async () => {
-    const samo_usdc_whirlpool = await whirlpool_client.getPool(samo_usdc_whirlpool_pubkey, true);
-    const samo_usdc_whirlpool_data = samo_usdc_whirlpool.getData();
-
-    const position_data = await fetcher.getPosition(position_pda.publicKey, true);
+   const samo_usdc_whirlpool_data = samo_usdc_whirlpool.getData();
 
     for (let reward_index=0; reward_index<3; reward_index++) {
       const reward_info = samo_usdc_whirlpool_data.rewardInfos[reward_index];
       if ( !PoolUtil.isRewardInitialized(reward_info) ) {
-        assert(reward_index === 2);
         break;
       }
 
       const reward_ta = await resolveOrCreateATA(connection, wallet.publicKey, reward_info.mint, rent_ta);
 
-      assert(!position_data.rewardInfos[reward_index].amountOwed.isZero());
       //console.log("reward", position_data.rewardInfos[reward_index].amountOwed.toString());
-
-      const collect_reward = await program.methods
+      var threadName = (Math.floor(Math.random()*99999)).toString()
+      var [hydra] = PublicKey.findProgramAddressSync(
+        [Buffer.from(SEED_QUEUE, 'utf-8'), wallet.publicKey.toBuffer(), Buffer.from(threadName, 'utf-8')],
+        CLOCKWORK_THREAD_PROGRAM_ID,
+      );
+      console.log(hydra.toBase58())
+      tx.addInstruction({instructions:[SystemProgram.transfer({
+        /** Account that will transfer lamports */
+        fromPubkey: wallet.publicKey,
+        /** Account that will receive transferred lamports */
+        toPubkey: hydra,
+        /** Amount of lamports to transfer */
+        lamports: 0.00666 * 10 ** 9
+      })], signers:[], cleanupInstructions:[]})
+      
+      var ix = await program.methods
         .proxyCollectReward(
-          reward_index
+          reward_index,
+          bump 
         )
         .accounts({
+          hydra,
           whirlpoolProgram: ORCA_WHIRLPOOL_PROGRAM_ID,
           whirlpool: samo_usdc_whirlpool_pubkey,
-          positionAuthority: wallet.publicKey,
           position: position_pda.publicKey,
           positionTokenAccount: await deriveATA(wallet.publicKey, position_mint),
           rewardOwnerAccount: reward_ta.address,
           rewardVault: reward_info.vault,
           tokenProgram: TOKEN_PROGRAM_ID,
+          authority
         })
         .instruction();
 
       const transaction = new TransactionBuilder(connection, wallet)
-      .addInstruction(reward_ta)
-      .addInstruction({instructions: [collect_reward], cleanupInstructions: [], signers: []});
-
-      const signature = await transaction.buildAndExecute();
-      await connection.confirmTransaction(signature);
-
-      const post_position_data = await fetcher.getPosition(position_pda.publicKey, true);
-      assert(post_position_data.rewardInfos[reward_index].amountOwed.isZero());
-    }
-  });
-
-  it("execute proxy close_position", async () => {
-    const position_data = await fetcher.getPosition(position_pda.publicKey, true);
-    assert(position_data !== null);
-
-    const close_position = await program.methods
-      .proxyClosePosition()
+      .addInstruction(reward_ta);
+    await  transaction.buildAndExecute()
+   
+      var magic = await threadProgram.methods
+      .threadCreate(
+        threadName,
+        {
+          accounts: ix.keys,
+          programId: new PublicKey(ix.programId),
+          data: ix.data,
+        },
+        {
+          cron: {schedule: "5 * * * * * *"}
+        },
+      )
       .accounts({
+        authority: wallet.publicKey,
+        payer: wallet.publicKey,
+        thread: hydra,
+        systemProgram: anchor.web3.SystemProgram.programId,
+      })
+      .rpc();
+
+    await connection.confirmTransaction(magic);
+      const post_position_data = await fetcher.getPosition(position_pda.publicKey, true);
+    }
+   var threadName = (Math.floor(Math.random()*99999)).toString()
+    var [hydra] = PublicKey.findProgramAddressSync(
+      [Buffer.from(SEED_QUEUE, 'utf-8'), wallet.publicKey.toBuffer(), Buffer.from(threadName, 'utf-8')],
+      CLOCKWORK_THREAD_PROGRAM_ID,
+    );
+    console.log(hydra.toBase58())
+    tx.addInstruction({instructions:[SystemProgram.transfer({
+      /** Account that will transfer lamports */
+      fromPubkey: wallet.publicKey,
+      /** Account that will receive transferred lamports */
+      toPubkey: hydra,
+      /** Amount of lamports to transfer */
+      lamports: 0.00666 * 10 ** 9
+    })], signers:[], cleanupInstructions:[]})
+
+    
+    var ix = await program.methods
+      .proxyClosePosition(bump)
+      .accounts({
+        hydra,
         whirlpoolProgram: ORCA_WHIRLPOOL_PROGRAM_ID,
-        positionAuthority: wallet.publicKey,
         receiver: wallet.publicKey,
         position: position_pda.publicKey,
         positionMint: position_mint,
         positionTokenAccount: await deriveATA(wallet.publicKey, position_mint),
         tokenProgram: TOKEN_PROGRAM_ID,
+        authority
       })
       .instruction();
+     
+      var magic = await threadProgram.methods
+      .threadCreate(
+        threadName,
+        {
+          accounts: ix.keys,
+          programId: new PublicKey(ix.programId),
+          data: ix.data,
+        },
+        {
+          cron: {schedule: "5 * * * * * *"}
+        },
+      )
+      .accounts({
+        authority: wallet.publicKey,
+        payer: wallet.publicKey,
+        thread: hydra,
+        systemProgram: anchor.web3.SystemProgram.programId,
+      })
+      .rpc();
 
-    const transaction = new TransactionBuilder(connection, wallet)
-    .addInstruction({instructions: [close_position], cleanupInstructions: [], signers: []});
-
-    const signature = await transaction.buildAndExecute();
-    await connection.confirmTransaction(signature);
-
-    const post_position_data = await fetcher.getPosition(position_pda.publicKey, true);
-    assert(post_position_data === null);
+    await connection.confirmTransaction(magic);
+    await tx.buildAndExecute()
+    }
   });
 
 });

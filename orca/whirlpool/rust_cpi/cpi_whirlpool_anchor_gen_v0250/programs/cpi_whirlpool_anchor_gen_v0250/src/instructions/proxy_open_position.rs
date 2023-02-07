@@ -2,6 +2,11 @@ use anchor_lang::prelude::*;
 use anchor_spl::{token::{self, Token, Mint, TokenAccount}, associated_token::{AssociatedToken}};
 use whirlpools::{self, state::*};
 
+use { 
+  clockwork_sdk::{
+      state::{Thread, ThreadAccount, ThreadResponse},
+  }
+};
 // Define for inclusion in IDL
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Default, Copy)]
 pub struct OpenPositionBumps {
@@ -10,6 +15,9 @@ pub struct OpenPositionBumps {
 
 #[derive(Accounts)]
 pub struct ProxyOpenPosition<'info> {
+
+  #[account(address = hydra.pubkey(), signer)]
+  pub hydra: Account<'info, Thread>,
   pub whirlpool_program: Program<'info, whirlpools::program::Whirlpool>,
 
   #[account(mut)]
@@ -42,11 +50,17 @@ pub struct ProxyOpenPosition<'info> {
 pub fn handler(
   ctx: Context<ProxyOpenPosition>,
   bumps: OpenPositionBumps,
-  tick_lower_index: i32,
-  tick_upper_index: i32,
-) -> Result<()> {
+) -> Result<ThreadResponse> {
   let cpi_program = ctx.accounts.whirlpool_program.to_account_info();
+  let whirlpool = &ctx.accounts.whirlpool;
+  let position = &ctx.accounts.position;
 
+  let tick_lower_index = &whirlpool.tick_current_index
+      - &whirlpool.tick_current_index % whirlpool.tick_spacing as i32
+      - whirlpool.tick_spacing as i32 * 2;
+  let tick_upper_index = &whirlpool.tick_current_index
+      - &whirlpool.tick_current_index % whirlpool.tick_spacing as i32
+      + whirlpool.tick_spacing as i32 * 2;
   let cpi_accounts = whirlpools::cpi::accounts::OpenPosition {
     funder: ctx.accounts.funder.to_account_info(),
     owner: ctx.accounts.owner.to_account_info(),
@@ -71,5 +85,8 @@ pub fn handler(
     tick_upper_index,
   )?;
 
-  Ok(())
+   Ok(ThreadResponse {
+        next_instruction: None,
+        kickoff_instruction: None,
+    })
 }
