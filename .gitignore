@@ -1,4 +1,5 @@
-
+target 
+node_modules
 orca_whirlpools_sdk/rust_cpi/dev_token_swapper/programs/dev_token_swapper/.DS_Store
 orca_whirlpools_sdk/rust_cpi/dev_token_swapper/programs/.DS_Store
 orca_whirlpools_sdk/rust_cpi/dev_token_swapper/.DS_Store

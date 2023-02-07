@@ -2,13 +2,13 @@
 seeds = false
 skip-lint = false
 [programs.localnet]
-cpi_whirlpool_anchor_gen_v0250 = "Ek5R6ecjVFYzWNnGkXpWVGk5UyjqFMp9w2aR8eYXDKmV"
+cpi_whirlpool_anchor_gen_v0250 = "AkWuiNqoja9g6hfjGysZZwTcPmfpBVRh6SAbjq8TbCYD"
 
 [registry]
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "devnet"
+cluster = "mainnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]

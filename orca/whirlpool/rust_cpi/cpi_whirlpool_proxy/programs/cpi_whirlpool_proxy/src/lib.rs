@@ -39,9 +39,13 @@ pub mod cpi_whirlpool_proxy {
       oracle: ctx.accounts.oracle.to_account_info(),
       token_program: ctx.accounts.token_program.to_account_info(),
     };
-    let cpi_ctx = CpiContext::new(
+
+    let authority_seeds = [b"authority".as_ref(), &[bump]];
+    let signer_seeds = [authority_seeds.as_ref()];
+    let cpi_ctx = CpiContext::new_with_signer(
       cpi_program,
       cpi_accounts,
+      &signer_seeds
     );
 
     // execute CPI
@@ -81,7 +85,10 @@ pub mod cpi_whirlpool_proxy {
       metadata_program: ctx.accounts.metadata_program.to_account_info(),
       metadata_update_auth: ctx.accounts.metadata_update_auth.to_account_info(),
     };
-    let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
+
+    let authority_seeds = [b"authority".as_ref(), &[bump]];
+    let signer_seeds = [authority_seeds.as_ref()];
+    let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, &signer_seeds);
 
     // execute CPI
     whirlpool::cpi::open_position_with_metadata(
@@ -115,10 +122,50 @@ pub mod cpi_whirlpool_proxy {
       tick_array_lower: ctx.accounts.tick_array_lower.to_account_info(),
       tick_array_upper: ctx.accounts.tick_array_upper.to_account_info(),
     };
-    let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
+
+    let authority_seeds = [b"authority".as_ref(), &[bump]];
+    let signer_seeds = [authority_seeds.as_ref()];
+    let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, &signer_seeds);
 
     // execute CPI
     whirlpool::cpi::increase_liquidity(
+      cpi_ctx,
+      liquidity_amount,
+      token_max_a,
+      token_max_b,
+    )?;
+
+    Ok(())
+  }
+
+  pub fn proxy_decrease_liquidity(
+    ctx: Context<ProxyModifyLiquidity>,
+    liquidity_amount: u128,
+    token_max_a: u64,
+    token_max_b: u64,
+  ) -> ProgramResult {
+    // proxy request
+    let cpi_program = ctx.accounts.whirlpool_program.to_account_info();
+    let cpi_accounts = ModifyLiquidity {
+      whirlpool: ctx.accounts.whirlpool.to_account_info(),
+      token_program: ctx.accounts.token_program.to_account_info(),
+      position_authority: ctx.accounts.position_authority.to_account_info(),
+      position: ctx.accounts.position.to_account_info(),
+      position_token_account: ctx.accounts.position_token_account.to_account_info(),
+      token_owner_account_a: ctx.accounts.token_owner_account_a.to_account_info(),
+      token_owner_account_b: ctx.accounts.token_owner_account_b.to_account_info(),
+      token_vault_a: ctx.accounts.token_vault_a.to_account_info(),
+      token_vault_b: ctx.accounts.token_vault_b.to_account_info(),
+      tick_array_lower: ctx.accounts.tick_array_lower.to_account_info(),
+      tick_array_upper: ctx.accounts.tick_array_upper.to_account_info(),
+    };
+
+    let authority_seeds = [b"authority".as_ref(), &[bump]];
+    let signer_seeds = [authority_seeds.as_ref()];
+    let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, &signer_seeds);
+
+    // execute CPI
+    whirlpool::cpi::decrease_liquidity(
       cpi_ctx,
       liquidity_amount,
       token_max_a,
