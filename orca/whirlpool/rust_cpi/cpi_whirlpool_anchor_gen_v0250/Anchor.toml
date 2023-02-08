@@ -2,7 +2,7 @@
 seeds = false
 skip-lint = false
 [programs.localnet]
-cpi_whirlpool_anchor_gen_v0250 = "DDBgJeCWxDj81edfrBtTDZUUJsBwoiWv3w8SCjPNJ7H3"
+cpi_whirlpool_anchor_gen_v0250 = "9dyeUpFkXJXceLChsrFrgoprCSW4xHCgpQevnbqKgoUB"
 
 [registry]
 url = "https://api.apr.dev"

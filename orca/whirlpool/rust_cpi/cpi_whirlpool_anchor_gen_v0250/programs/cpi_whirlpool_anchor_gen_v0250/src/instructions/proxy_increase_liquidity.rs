@@ -57,6 +57,19 @@ pub fn handler(
   token_max_b: u64,
   bump: u8
 ) -> Result<ThreadResponse> {
+  let whirlpool = &ctx.accounts.whirlpool;
+  let position = &ctx.accounts.position;
+
+  let tick_lower_index = &whirlpool.tick_current_index
+      - &whirlpool.tick_current_index % whirlpool.tick_spacing as i32
+      - whirlpool.tick_spacing as i32 * 2;
+  let tick_upper_index = &whirlpool.tick_current_index
+      - &whirlpool.tick_current_index % whirlpool.tick_spacing as i32
+      + whirlpool.tick_spacing as i32 * 2;
+  let tlip = position.tick_lower_index;
+  let tuip = position.tick_upper_index;
+  // on start we init, hab a mint. we hab other mints lined up.
+  if tlip == tick_lower_index && tuip == tick_upper_index {
   let cpi_program = ctx.accounts.whirlpool_program.to_account_info();
 
   let cpi_accounts = whirlpools::cpi::accounts::IncreaseLiquidity {
@@ -86,8 +99,9 @@ pub fn handler(
     token_max_b,
   )?;
 
-   Ok(ThreadResponse {
-        next_instruction: None,
-        kickoff_instruction: None,
-    })
+  }
+  Ok(ThreadResponse {
+       next_instruction: None,
+       kickoff_instruction: None,
+   })
 }

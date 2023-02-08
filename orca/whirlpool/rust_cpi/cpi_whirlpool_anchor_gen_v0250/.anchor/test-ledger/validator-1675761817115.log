@@ -7,7 +7,7 @@
             "--mint",
             "Gf3sbc5Jb62jH7WcTr3WSNGDQLk1w6wcKMZXKK1SC1E6",
             "--bpf-program",
-            "3jcR44DTqNg6XVSSLPd2HU8ebkAsxrskUbdTtz8DxcMK",
+            "9dyeUpFkXJXceLChsrFrgoprCSW4xHCgpQevnbqKgoUB",
             "/home/jd/solsandbox/orca/whirlpool/rust_cpi/cpi_whirlpool_anchor_gen_v0250/target/deploy/cpi_whirlpool_anchor_gen_v0250.so",
             "--bpf-program",
             "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s",
