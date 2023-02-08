@@ -15,7 +15,7 @@ pub struct ProxyClosePosition<'info> {
   pub whirlpool_program: Program<'info, whirlpools::program::Whirlpool>,
 
   #[account(mut)]
-  pub whirlpool: Account<'info, Whirlpool>,
+  pub whirlpool: Box<Account<'info, Whirlpool>>,
   
 
   /// CHECK: safe (the account to receive the remaining balance of the closed account)
@@ -23,7 +23,7 @@ pub struct ProxyClosePosition<'info> {
   pub receiver: UncheckedAccount<'info>,
 
   #[account(mut, close = receiver)]
-  pub position: Account<'info, Position>,
+  pub position: Box<Account<'info, Position>>,
 
   #[account(mut, address = position.position_mint)]
   pub position_mint: Account<'info, Mint>,

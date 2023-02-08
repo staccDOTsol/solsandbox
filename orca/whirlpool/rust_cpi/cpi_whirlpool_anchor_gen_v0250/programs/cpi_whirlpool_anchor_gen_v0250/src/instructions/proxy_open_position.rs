@@ -1,4 +1,4 @@
-use anchor_lang::prelude::*;
+use anchor_lang::{prelude::*, solana_program::entrypoint::ProgramResult};
 use anchor_spl::{token::{self, Token, Mint, TokenAccount}, associated_token::{AssociatedToken}};
 use whirlpools::{self, state::*};
 
@@ -16,8 +16,6 @@ pub struct OpenPositionBumps {
 #[derive(Accounts)]
 pub struct ProxyOpenPosition<'info> {
 
-  #[account(address = hydra.pubkey(), signer)]
-  pub hydra: Account<'info, Thread>,
   pub whirlpool_program: Program<'info, whirlpools::program::Whirlpool>,
 
   #[account(mut)]
@@ -50,7 +48,8 @@ pub struct ProxyOpenPosition<'info> {
 pub fn handler(
   ctx: Context<ProxyOpenPosition>,
   bumps: OpenPositionBumps,
-) -> Result<ThreadResponse> {
+) -> Result<()>
+ {
   let cpi_program = ctx.accounts.whirlpool_program.to_account_info();
   let whirlpool = &ctx.accounts.whirlpool;
   let position = &ctx.accounts.position;
@@ -85,8 +84,5 @@ pub fn handler(
     tick_upper_index,
   )?;
 
-   Ok(ThreadResponse {
-        next_instruction: None,
-        kickoff_instruction: None,
-    })
+   Ok(())
 }

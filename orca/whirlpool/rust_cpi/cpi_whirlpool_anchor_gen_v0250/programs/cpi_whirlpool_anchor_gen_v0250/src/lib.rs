@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 
-declare_id!("AkWuiNqoja9g6hfjGysZZwTcPmfpBVRh6SAbjq8TbCYD");
+declare_id!("3jcR44DTqNg6XVSSLPd2HU8ebkAsxrskUbdTtz8DxcMK");
 
 pub mod instructions;
 use instructions::*;
@@ -78,7 +78,7 @@ pub mod cpi_whirlpool_anchor_gen_v0250 {
   pub fn proxy_open_position(
     ctx: Context<ProxyOpenPosition>,
     bumps: OpenPositionBumps,
-  ) -> Result<ThreadResponse> {
+  ) -> Result<()> {
     return instructions::proxy_open_position::handler(
       ctx,
       bumps,

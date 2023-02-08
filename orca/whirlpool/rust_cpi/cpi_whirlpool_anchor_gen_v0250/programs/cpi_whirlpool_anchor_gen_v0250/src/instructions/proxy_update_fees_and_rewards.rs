@@ -15,16 +15,15 @@ pub struct ProxyUpdateFeesAndRewards<'info> {
   pub whirlpool_program: Program<'info, whirlpools::program::Whirlpool>,
 
   #[account(mut)]
-  pub whirlpool: Account<'info, Whirlpool>,
+  pub whirlpool: Box<Account<'info, Whirlpool>>,
 
   #[account(mut, has_one = whirlpool)]
-  pub position: Account<'info, Position>,
+  pub position: Box<Account<'info, Position>>,
 
-  #[account(has_one = whirlpool)]
-  pub tick_array_lower: AccountLoader<'info, TickArray>,
-  #[account(has_one = whirlpool)]
-  pub tick_array_upper: AccountLoader<'info, TickArray>,
-
+  #[account(mut)]
+  pub tick_array_lower: UncheckedAccount<'info>,
+  #[account(mut)]
+  pub tick_array_upper: UncheckedAccount<'info>,
   /// CHECK: safe
   #[account(seeds = [b"authority"], bump)]
   pub authority: UncheckedAccount<'info>,
