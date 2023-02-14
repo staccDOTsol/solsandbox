@@ -20,3 +20,4 @@ anchor-lang = "0.25.0"
 anchor-spl = "0.25.0"
 clockwork-sdk = "*"
 whirlpools = "0.3.0" # https://crates.io/crates/whirlpools
+arrayref = "*"

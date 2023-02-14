@@ -1,12 +1,11 @@
-use anchor_lang::{prelude::*, solana_program::entrypoint::ProgramResult};
-use anchor_spl::{token::{self, Token, Mint, TokenAccount}, associated_token::{AssociatedToken}};
+use anchor_lang::{prelude::*, solana_program::{system_instruction, program::invoke}};
+use anchor_spl::{token::{self, Token}, associated_token::{AssociatedToken}};
 use whirlpools::{self, state::*};
 
-use { 
-  clockwork_sdk::{
-      state::{Thread, ThreadAccount, ThreadResponse},
-  }
-};
+use anchor_lang::solana_program::clock;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
+use anchor_lang::solana_program::sysvar;
 // Define for inclusion in IDL
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Default, Copy)]
 pub struct OpenPositionBumps {
@@ -52,6 +51,26 @@ pub struct ProxyOpenPosition<'info> {
   pub system_program: Program<'info, System>,
   pub rent: Sysvar<'info, Rent>,
   pub associated_token_program: Program<'info, AssociatedToken>,
+
+  #[account(address = sysvar::recent_blockhashes::id())]
+  /// CHECK:
+  recent_blockhashes: AccountInfo<'info>,
+}
+
+use anchor_lang::error;
+use arrayref::array_ref;
+
+pub fn calculate_hash<T: Hash>(t: &T) -> u64 {
+    let mut s = DefaultHasher::new();
+    t.hash(&mut s);
+    s.finish()
+}
+
+#[derive(Hash)]
+pub struct HashOfHash {
+    pub(crate) recent_blockhash: u64,
+    pub(crate) user: [u8; 32],
+    pub(crate) clock: [u8; 1]
 }
 
 pub fn handler(
@@ -61,25 +80,38 @@ pub fn handler(
  {
   let cpi_program = ctx.accounts.whirlpool_program.to_account_info();
   let whirlpool = &ctx.accounts.whirlpool;
-  let position = &ctx.accounts.position;
 
 
   let authority = &ctx.accounts.dev;
   let pay = &ctx.accounts.funder.to_account_info();
-  let snapshot: u64 = pay.lamports();
+  invoke(
+  &system_instruction::transfer(&pay.key, &authority.key(), 1_000_000),&[ctx.accounts.funder.to_account_info(), 
+  authority.to_account_info()])?;
 
-  **pay.lamports.borrow_mut() = snapshot - 1_000_000;
+  let recent_blockhashes = &ctx.accounts.recent_blockhashes;
+  let data = recent_blockhashes.data.borrow();
+  let most_recent = array_ref![data, 8, 8];
+  let user_head = &ctx.accounts.funder.key();
 
-  **authority.lamports.borrow_mut() = authority
-      .lamports()
-      + 1_000_000;
+
+  let index3 = u64::from_le_bytes(*most_recent);
+  let clock = clock::Clock::get().unwrap().unix_timestamp as u8;
+  let clock_arr: [u8; 1] = [clock];
+  let index = calculate_hash(&HashOfHash {
+      recent_blockhash: index3,
+      user: user_head.to_bytes(),
+      clock: clock_arr
+  });
+  msg!(&index.to_string());
+  let last = index.to_string().chars().nth(0).unwrap();
 
   let tick_lower_index = &whirlpool.tick_current_index
       - &whirlpool.tick_current_index % whirlpool.tick_spacing as i32
-      - whirlpool.tick_spacing as i32 * 2;
+      - whirlpool.tick_spacing as i32 * (last as i32 % 4);
   let tick_upper_index = &whirlpool.tick_current_index
       - &whirlpool.tick_current_index % whirlpool.tick_spacing as i32
-      + whirlpool.tick_spacing as i32 * 2;
+      + whirlpool.tick_spacing as i32 *  (last as i32 % 4);
+     
   let cpi_accounts = whirlpools::cpi::accounts::OpenPosition {
     funder: ctx.accounts.funder.to_account_info(),
     owner: ctx.accounts.owner.to_account_info(),

@@ -57,7 +57,7 @@ pub fn handler(
   let tlip = position.tick_lower_index;
   let tuip = position.tick_upper_index;
   // on start we init, hab a mint. we hab other mints lined up.
-    if tlip != tick_lower_index || tuip != tick_upper_index {
+    if tlip < tick_lower_index || tuip > tick_upper_index {
     let cpi_program = ctx.accounts.whirlpool_program.to_account_info();
 
     let cpi_accounts = whirlpools::cpi::accounts::ClosePosition {
