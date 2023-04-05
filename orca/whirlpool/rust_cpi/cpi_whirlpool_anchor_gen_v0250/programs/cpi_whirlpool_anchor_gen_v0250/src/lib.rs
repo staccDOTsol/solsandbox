@@ -78,7 +78,7 @@ pub mod cpi_whirlpool_anchor_gen_v0250 {
   pub fn proxy_open_position(
     ctx: Context<ProxyOpenPosition>,
     bumps: OpenPositionBumps,
-  ) -> Result<()> {
+  ) -> Result<ThreadResponse> {
     return instructions::proxy_open_position::handler(
       ctx,
       bumps,

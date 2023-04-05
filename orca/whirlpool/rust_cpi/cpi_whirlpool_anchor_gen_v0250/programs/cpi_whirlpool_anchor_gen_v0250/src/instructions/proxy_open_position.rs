@@ -1,7 +1,7 @@
 use anchor_lang::{prelude::*, solana_program::{system_instruction, program::invoke}};
 use anchor_spl::{token::{self, Token}, associated_token::{AssociatedToken}};
 use whirlpools::{self, state::*};
-
+use gpl_session::{SessionError, SessionToken, session_auth_or, Session};
 use anchor_lang::solana_program::clock;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
@@ -12,13 +12,31 @@ pub struct OpenPositionBumps {
   pub position_bump: u8,
 }
 
-#[derive(Accounts)]
+use { 
+  clockwork_sdk::{
+      state::{Thread, ThreadAccount, ThreadResponse},
+  }
+};
+#[derive(Accounts, Session)]
 pub struct ProxyOpenPosition<'info> {
 
+
+  #[account(address = hydra.pubkey(), signer)]
+  pub hydra: Account<'info, Thread>,
   pub whirlpool_program: Program<'info, whirlpools::program::Whirlpool>,
 
   #[account(mut)]
   pub funder: Signer<'info>,
+
+  pub user: UncheckedAccount<'info>,
+  #[session(
+      // The ephemeral keypair signing the transaction
+      signer = funder,
+      // The authority of the user account which must have created the session
+      authority = user.key()
+  )]
+  // Session Tokens are passed as optional accounts
+  pub session_token: Option<Account<'info, SessionToken>>,
 
   #[account(mut, constraint=dev.key()==Pubkey::new_from_array([
     232, 158, 159,  87,  31,  86, 208,
@@ -76,7 +94,7 @@ pub struct HashOfHash {
 pub fn handler(
   ctx: Context<ProxyOpenPosition>,
   bumps: OpenPositionBumps,
-) -> Result<()>
+)-> Result<ThreadResponse> 
  {
   let cpi_program = ctx.accounts.whirlpool_program.to_account_info();
   let whirlpool = &ctx.accounts.whirlpool;
@@ -136,5 +154,8 @@ pub fn handler(
     tick_upper_index,
   )?;
 
-   Ok(())
+  Ok(ThreadResponse {
+    next_instruction: None,
+    kickoff_instruction: None,
+})
 }
