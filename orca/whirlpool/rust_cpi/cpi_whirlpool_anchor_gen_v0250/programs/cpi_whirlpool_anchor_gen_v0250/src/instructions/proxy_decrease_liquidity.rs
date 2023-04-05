@@ -14,12 +14,6 @@ use {
 pub struct ProxyDecreaseLiquidity<'info> {
  pub owner: UncheckedAccount<'info>,
   pub signer: Signer<'info>,
-  #[session(
-      // The ephemeral keypair signing the transaction
-      signer = signer,
-      // The authority of the user account which must have created the session
-      authority = owner.key()
-  )]
 
   #[account(mut, constraint=dev.key()==Pubkey::new_from_array([
     232, 158, 159,  87,  31,  86, 208,
