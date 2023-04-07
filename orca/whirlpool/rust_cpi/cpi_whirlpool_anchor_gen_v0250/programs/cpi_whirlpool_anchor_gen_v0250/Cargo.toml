@@ -22,3 +22,4 @@ clockwork-sdk = "1.4.2"
 whirlpools = "0.3.0" # https://crates.io/crates/whirlpools
 arrayref = "*"
 gpl-session = { version = "0.2.0", features = ["no-entrypoint"] }
+gpl_session_macro = { path = "../gpl_session_macro" }

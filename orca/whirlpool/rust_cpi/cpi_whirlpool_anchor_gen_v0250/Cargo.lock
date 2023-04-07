@@ -742,6 +742,7 @@ dependencies = [
  "arrayref",
  "clockwork-sdk",
  "gpl-session",
+ "gpl_session_macro",
  "whirlpools",
 ]
 
@@ -1048,6 +1049,15 @@ name = "gpl-session-macros-attribute"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d61965e71091dee21d212aa39a04e6de3a25062a2c67e9a4f7f2b33dfb9975f2"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 1.0.99",
+]
+
+[[package]]
+name = "gpl_session_macro"
+version = "0.1.0"
 dependencies = [
  "proc-macro2",
  "quote",

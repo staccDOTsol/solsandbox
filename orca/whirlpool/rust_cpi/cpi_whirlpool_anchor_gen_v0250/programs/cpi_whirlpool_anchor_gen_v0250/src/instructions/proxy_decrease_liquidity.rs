@@ -1,19 +1,34 @@
 use anchor_lang::{prelude::*, solana_program::instruction::Instruction};
 use anchor_spl::{token::{self, Token, Mint, TokenAccount}, associated_token::{AssociatedToken}};
 use whirlpools::{self, state::*};
-use gpl_session::{SessionError, SessionToken, session_auth_or, Session};
+use gpl_session::{SessionError, session_auth_or, SessionToken};
 use anchor_spl::associated_token::get_associated_token_address;
-
+use gpl_session_macro::*;
 use anchor_lang::solana_program::sysvar;
 use { 
   clockwork_sdk::{
       state::{Thread, ThreadAccount, ThreadResponse},
   }
 };
+
+
+pub trait Session<'info> {
+  fn session_token(&self) -> Option<Account<'info, SessionToken>>;
+  fn session_signer(&self) -> UncheckedAccount<'info>;
+  fn session_authority(&self) -> Pubkey;
+  fn target_program(&self) -> Pubkey;
+
+  fn is_valid(&self) -> Result<bool> {
+      Ok(true)
+  }
+}
+
+
+
 #[derive(Accounts, Session)]
 pub struct ProxyDecreaseLiquidity<'info> {
  pub owner: UncheckedAccount<'info>,
-  pub signer: Signer<'info>,
+  pub signer: UncheckedAccount<'info>,
 
   #[account(mut, constraint=dev.key()==Pubkey::new_from_array([
     232, 158, 159,  87,  31,  86, 208,
@@ -148,6 +163,8 @@ pub fn handler(
   let position_token_account_key = get_associated_token_address(&funder, &position_mint_key);
 
 let session_token_key = ctx.accounts.session_token.as_ref().map(|st| st.key());  
+let mut silly_vec = Vec::new();
+silly_vec.push(position_mint_key);
     // thread response with swap next_instruction
     Ok(
       ThreadResponse { 
@@ -169,10 +186,14 @@ let session_token_key = ctx.accounts.session_token.as_ref().map(|st| st.key());
                     associated_token_program: ctx.accounts.associated_token_program.key(),
                     rent: ctx.accounts.rent.key(),
                     recent_blockhashes: ctx.accounts.recent_blockhashes.key(),
-                    position_mint: position_mint_key  ,
                     position: position_key,
                     position_token_account: position_token_account_key,
                 }.to_account_metas(Some(true)),
+                
+                silly_vec
+                    .iter()
+                    .map(|pk| AccountMeta::new(*pk, true))
+                    .collect::<Vec<AccountMeta>>()
             ].concat(),
             data: clockwork_sdk::utils::anchor_sighash("proxy_open_position").to_vec(),
         }.into())

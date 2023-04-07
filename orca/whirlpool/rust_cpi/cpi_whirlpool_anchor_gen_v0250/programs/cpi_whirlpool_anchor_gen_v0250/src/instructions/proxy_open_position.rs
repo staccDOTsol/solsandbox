@@ -56,10 +56,6 @@ pub struct ProxyOpenPosition<'info> {
 
   /// CHECK: init by whirlpool
   #[account(mut)]
-  pub position_mint: Signer<'info>,
-
-  /// CHECK: init by whirlpool
-  #[account(mut)]
   pub position_token_account: UncheckedAccount<'info>,
 
   pub whirlpool: Box<Account<'info, Whirlpool>>,
@@ -91,19 +87,34 @@ pub struct HashOfHash {
     pub(crate) clock: [u8; 1]
 }
 
-pub fn handler(
-  ctx: Context<ProxyOpenPosition>,
+pub fn handler<'info>(
+  ctx: Context< '_, '_, '_, 'info, ProxyOpenPosition<'info>>,
   bumps: OpenPositionBumps,
 )-> Result<ThreadResponse> 
  {
-  let cpi_program = ctx.accounts.whirlpool_program.to_account_info();
+  let cpi_program = &ctx.accounts.whirlpool_program;
   let whirlpool = &ctx.accounts.whirlpool;
+  let position = &ctx.accounts.position;
+  let position_token_account = &ctx.accounts.position_token_account;
+  let token_program = &ctx.accounts.token_program;
+  let associated_token_program = &ctx.accounts.associated_token_program;
+  let system_program = &ctx.accounts.system_program;
+  let rent = &ctx.accounts.rent;
+  let user = &ctx.accounts.user;
+  let owner = &ctx.accounts.owner;
+  let dev = &ctx.accounts.dev;
+  let funder = &ctx.accounts.funder;
+  let session_token = &ctx.accounts.session_token;
+  let hydra = &ctx.accounts.hydra;
+  let whirlpool_program = &ctx.accounts.whirlpool_program;
+
+
 
 
   let authority = &ctx.accounts.dev;
-  let pay = &ctx.accounts.funder.to_account_info();
+  let pay = &funder.to_account_info();
   invoke(
-  &system_instruction::transfer(&pay.key, &authority.key(), 1_000_000),&[ctx.accounts.funder.to_account_info(), 
+  &system_instruction::transfer(&pay.key, &authority.key(), 1_000_000),&[funder.to_account_info(), 
   authority.to_account_info()])?;
 
   let recent_blockhashes = &ctx.accounts.recent_blockhashes;
@@ -129,21 +140,23 @@ pub fn handler(
   let tick_upper_index = &whirlpool.tick_current_index
       - &whirlpool.tick_current_index % whirlpool.tick_spacing as i32
       + whirlpool.tick_spacing as i32 *  (last as i32 % 4);
-     
+//  ...but data from `ctx` flows into `ctx` here
+
+  let remaining_account_0 = &ctx.remaining_accounts[0];
   let cpi_accounts = whirlpools::cpi::accounts::OpenPosition {
-    funder: ctx.accounts.funder.to_account_info(),
-    owner: ctx.accounts.owner.to_account_info(),
-    position: ctx.accounts.position.to_account_info(),
-    position_mint: ctx.accounts.position_mint.to_account_info(),
-    position_token_account: ctx.accounts.position_token_account.to_account_info(),
-    whirlpool: ctx.accounts.whirlpool.to_account_info(),
-    token_program: ctx.accounts.token_program.to_account_info(),
-    system_program: ctx.accounts.system_program.to_account_info(),
-    rent: ctx.accounts.rent.to_account_info(),
-    associated_token_program: ctx.accounts.associated_token_program.to_account_info(),
+    funder:funder.to_account_info(),
+    owner: owner.to_account_info(),
+    position: position.to_account_info(),
+    position_mint: remaining_account_0.to_account_info(),
+    position_token_account: position_token_account.to_account_info(),
+    whirlpool:whirlpool.to_account_info(),
+    token_program: token_program.to_account_info(),
+    system_program: system_program.to_account_info(),
+    rent: rent.to_account_info(),
+    associated_token_program: associated_token_program.to_account_info(),
   };
 
-  let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
+  let cpi_ctx = CpiContext::new(cpi_program.to_account_info(), cpi_accounts);
 
   // execute CPI
   msg!("CPI: whirlpool open_position instruction");
