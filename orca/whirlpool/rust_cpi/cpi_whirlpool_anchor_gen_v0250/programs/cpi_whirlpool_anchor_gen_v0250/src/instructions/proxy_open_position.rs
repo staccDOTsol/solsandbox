@@ -1,6 +1,8 @@
 use anchor_lang::{prelude::*, solana_program::{system_instruction, program::invoke}};
-use anchor_spl::{token::{self, Token}, associated_token::{AssociatedToken}};
-use whirlpools::{self, state::*};
+use anchor_spl::{token::{self, Token, Mint, TokenAccount}, associated_token::{AssociatedToken}};
+use mpl_token_metadata::state::Metadata;
+use whirlpool::{self, state::*};
+use mpl_token_metadata::state::TokenMetadataAccount;
 
 use anchor_lang::solana_program::clock;
 use std::collections::hash_map::DefaultHasher;
@@ -21,16 +23,25 @@ pub struct ProxyOpenPosition<'info> {
   pub funder: Signer<'info>,
 
   #[account(mut, constraint=dev.key()==Pubkey::new_from_array([
-    232, 158, 159,  87,  31,  86, 208,
-     28, 245, 115, 130, 214, 193, 219,
-     66, 228,  51, 230, 127, 133, 163,
-    242,  27,  69, 157, 185, 123, 176,
-    143,  63,  68, 191
+    119, 186, 155,  83,  22,  97, 168,
+     52, 161, 246, 238, 103, 193,  86,
+    249,  25, 134, 144, 100, 195,  62,
+     17, 174, 178, 236, 237, 222,  60,
+    154, 103, 124, 200
   ]))]
   /// CHECK: safe (the owner of position_token_account)
   pub dev: UncheckedAccount<'info>,
   /// CHECK: safe (the owner of position_token_account)
   pub owner: UncheckedAccount<'info>,
+  
+  #[account(
+    associated_token::mint = risk_lol_mint,
+    associated_token::authority = owner
+  )]
+  pub risk_lol_mint_ata: Account<'info, TokenAccount>,
+
+  pub risk_lol_mint: Account<'info, Mint>,
+  pub risk_lol_metadata: UncheckedAccount<'info>,
 
   /// CHECK: init by whirlpool
   #[account(mut)]
@@ -84,9 +95,20 @@ pub fn handler(
 
   let authority = &ctx.accounts.dev;
   let pay = &ctx.accounts.funder.to_account_info();
+  // if issome mint
+  
+  let metadata = Metadata::from_account_info(ctx.accounts.risk_lol_metadata.as_ref()).unwrap();
+  let mint = &ctx.accounts.risk_lol_mint;
+  let ata = &ctx.accounts.risk_lol_mint_ata;
+
+ // let is_collection = metadata.collection.unwrap().key == Pubkey::from_str("4o49a57w3jh6p7ADQG4vEvuMcejy33TK5WKjQ4aHXRLy").unwrap();
+  if !true && (metadata.mint == mint.key() && ata.owner == ctx.accounts.owner.key() ) {
   invoke(
   &system_instruction::transfer(&pay.key, &authority.key(), 1_000_000),&[ctx.accounts.funder.to_account_info(), 
   authority.to_account_info()])?;
+  }
+
+
 
   let recent_blockhashes = &ctx.accounts.recent_blockhashes;
   let data = recent_blockhashes.data.borrow();

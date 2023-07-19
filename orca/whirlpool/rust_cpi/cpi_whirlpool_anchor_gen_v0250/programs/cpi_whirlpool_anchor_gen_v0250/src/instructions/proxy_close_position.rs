@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 use anchor_spl::{token::{self, Token, Mint, TokenAccount}, associated_token::{AssociatedToken}};
-use whirlpools::{self, state::*};
+use whirlpool::{self, state::*};
 
 use { 
   clockwork_sdk::{

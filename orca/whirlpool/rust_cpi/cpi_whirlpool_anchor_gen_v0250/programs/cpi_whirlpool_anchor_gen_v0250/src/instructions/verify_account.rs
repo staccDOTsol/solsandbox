@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Token, TokenAccount};
-use whirlpools::{self, state::{WhirlpoolsConfig, FeeTier, Whirlpool, TickArray, Position}};
+use whirlpool::{self, state::{WhirlpoolsConfig, FeeTier, Whirlpool, TickArray, Position}};
 
 #[derive(Accounts)]
 pub struct VerifyWhirlpoolsConfigAccount<'info> {
